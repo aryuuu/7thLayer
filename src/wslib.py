@@ -2,6 +2,7 @@
 
 import hashlib
 import base64
+import codecs
 
 # constants
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -149,7 +150,7 @@ def validate_sec_key(sec_key):
  """
 
 
-def build_frame(fin=FALSE, rsv1=0, rsv2=0, rsv3=0, opcode=CONTINUATION, mask=0, payload_len, masking_key=None, payload):
+def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, payload):
 	# build our frame first byte
 	first_byte = (fin << 7) + (rsv1 << 6) + (rsv2 << 5) + (rsv3 << 4) + opcode
 	first_byte = imp_int_to_utf8(first_byte)
