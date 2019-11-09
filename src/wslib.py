@@ -91,9 +91,10 @@ def mask_payload(payload, key):
 	result = ''
 	
 	for i in range(len(payload)):
-		result += chr(ord(payload[i]) ^ ord(payload[i % 4]))
+		# print("payload {} {}".format(i, payload))
+		result += chr(payload[i] ^ key[i % 4])
 
-	return result
+	return result.encode('utf-8')
 
 
 
@@ -361,21 +362,25 @@ def is_handshake_valid(req):
 
 # this function is used to create a response to websocket handshake
 # takes one argument: HTTP req
-# and returns response for that request
+# and returns response for that request, status
 def reply_handshake(req):
-		req = parse_http_request(req)
+	req = parse_http_request(req)
 	if (is_handshake_valid(req)):
 		sec_key = gen_accept_key(req["sec-websocket-key"])
-
-		response = """HTTP/1.1 101 Switching Protocol
-Upgrade: websocket
-Connection: upgrade
-Sec-WebSocket-Key: {}""".format(sec_key)
+		success = True
+		response = ["HTTP/1.1 101 Switching Protocol", "Upgrade: websocket", "Sec-WebSocket-Key: {}".format(sec_key)]
+# 		response = """HTTP/1.1 101 Switching Protocol
+# Upgrade: websocket
+# Connection: upgrade
+# Sec-WebSocket-Key: {}""".format(sec_key)
 
 	else:
-		response = """HTTP/1.1 400 Bad Request"""
-	
-	return response
+		success = False
+		response = ["HTTP/1.1 400 Bad Request", ""]
+		# response = """HTTP/1.1 400 Bad Request"""
+
+
+	return "\r\n".join(response), success
 
 
 
