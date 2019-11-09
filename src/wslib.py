@@ -178,42 +178,56 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 
 # this function is used to parse a frame
 # takes utf-8 encoded string (packet frame) as argument
-# returns dictionary of frame (like JSON) consist of FIN, RSV1, RSV2, RSV3, OPCODE, MASK, PAYLOAD_LEN, MASKING_KEY, PAYLOAD
+# returns dictionary of frame (like JSON) consist of FIN, RSV1, RSV2, RSV3, OPCODE, MASK, PAYLOAD_LEN, MASKING_KEY, PAYLOAD (decoded)
 def parse_frame(frame):
 	fin = frame[FIN_IDX] >> 7
-	rsv1 = frame[RSV1_IDX] << 1 >> 7
-	rsv2 = frame[RSV2_IDX] << 2 >> 7
-	rsv3 = frame[RSV3_IDX] << 3 >> 7
+	rsv1 = (frame[RSV1_IDX] & 0x70) >> 7
+	rsv2 = (frame[RSV2_IDX] & 0x70) >> 7
+	rsv3 = (frame[RSV3_IDX] & 0x70) >> 7
 
 	opcode = frame[OPCODE_IDX] & 0x0f
 	mask = frame[MASK_IDX] >> 7
 
-	pay_len = frame[PAYLOAD_START_IDX] & 0x7f
+	# set the payload, according to the categories 
+	# https://tools.ietf.org/html/rfc6455#section-5.2
+	pay_len = frame[PAYLOAD_LEN_START_IDX] & 0x7f
 	if (pay_len <= 0x7d):
 		payload_len = pay_len
 	elif (PAY_LEN == 0x7e):
-		payload_len = frame[PAYLOAD_LEN_START_IDX:PAYLOAD_LEN_END_EXT_16_IDX] & 0x0fffff
+		payload_len = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX] 
 	else:
-		payload_len = frame[PAYLOAD_LEN_START_IDX:PAYLOAD_LEN_END_EXT_64_IDX] & 0x0fffffffffffffffff
+		payload_len = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_64_IDX] 
 
-	# check if mask exist
+	# check if mask exist to decide wether or not we should parse the masking key
+	masking_key = None
 	if (mask == 1):
-		if(pay_len == 0x7d):
+		if(pay_len <= 0x7d):
 			masking_key = frame[PAYLOAD_LEN_END_IDX:PAYLOAD_LEN_END_IDX+4]
 		elif(pay_len == 0x7e):
 			masking_key = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX+4]
 		else:
 			masking_key = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_64_IDX+4]
 
-	# and again check if mask exist
+	# and again check if mask exist to parse our payload
 	if(mask == 1):
-		if(pay_len == 0x7d):
-			payload = frame[PAYLOAD_LEN_END_IDX+4:]
+		print("This frame is masked")
+		if(pay_len <= 0x7d):
+			payload = mask_payload(frame[PAYLOAD_LEN_END_IDX+4:])
 		elif(pay_len == 0x7e):
-			payload = frame[PAYLOAD_LEN_END_EXT_16_IDX+4:]
+			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_16_IDX+4:])
 		else:
-			payload = frame[PAYLOAD_LEN_END_EXT_64_IDX+4:]
-
+			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_64_IDX+4:])
+	else:
+		print("this one is not masked")
+		if(pay_len <= 0x7d):
+			payload = frame[PAYLOAD_LEN_END_IDX+1:].decode('utf-8')
+			# print("this one is short")
+		elif(pay_len == 0x7e):
+			payload = frame[PAYLOAD_LEN_END_EXT_16_IDX:].decode('utf-8')
+			# print("this one is not very long")
+		else:
+			payload = frame[PAYLOAD_LEN_END_EXT_64_IDX:].decode('utf-8')
+			# print("this one is long")
 
 	result = {
 		"FIN" : fin,
