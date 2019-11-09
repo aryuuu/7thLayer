@@ -88,13 +88,15 @@ def utf8_to_int(stream):
 # detail of masking algorthim https://tools.ietf.org/html/rfc6455#section-5.3
 def mask_payload(payload, key):
 
-	result = ''
+	result = b''
 	
 	for i in range(len(payload)):
 		# print("payload {} {}".format(i, payload))
-		result += chr(payload[i] ^ key[i % 4])
+		result += imp_int_to_utf8(payload[i] ^ key[i % 4])
 
-	return result.encode('utf-8')
+	# padding = len(payload) % 8
+	return result
+	# return imp_int_to_utf8(result, padding)
 
 
 
@@ -171,14 +173,16 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 	else:
 		second = imp_int_to_utf8((mask << 7) + 0x7f) + imp_int_to_utf8(payload_len, 64)
 
-	third = ''.encode('utf-8')
+	# third = ''.encode('utf-8')
 	if (mask == 1):
 		third = masking_key
 		last = mask_payload(payload, masking_key)
+		return first_byte + second + third + last		
 	else:
 		last = payload
+		return first_byte + second +  last
 
-	return first_byte + second + third + last
+	# return first_byte + second + third + last
 
 
 
@@ -220,11 +224,11 @@ def parse_frame(frame):
 	if(mask == 1):
 		print("This frame is masked")
 		if(pay_len <= 0x7d):
-			payload = mask_payload(frame[PAYLOAD_LEN_END_IDX+4:])
+			payload = mask_payload(frame[PAYLOAD_LEN_END_IDX+4:], masking_key)
 		elif(pay_len == 0x7e):
-			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_16_IDX+4:])
+			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_16_IDX+4:], masking_key)
 		else:
-			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_64_IDX+4:])
+			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_64_IDX+4:], masking_key)
 	else:
 		print("this one is not masked")
 		if(pay_len <= 0x7d):
