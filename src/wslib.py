@@ -4,6 +4,9 @@ import hashlib
 import base64
 import codecs
 
+
+
+
 # constants
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -47,6 +50,18 @@ PAYLOAD_LEN_END_EXT_64_IDX = PAYLOAD_LEN_START_EXT_IDX + 8
 
 # PAYLOAD_START_IDX = MASKING_KEY_END_IDX
 
+
+
+
+
+
+
+
+
+
+
+
+
 #this method is just like int_to_ascii, but returns bytes instead of string
 #i hope there is no more weird bug
 def imp_int_to_utf8(num, zero_padding=2):
@@ -82,19 +97,11 @@ def mask_payload(payload, key):
 
 
 
-# this method is used to generate Sec-WebSocket-Accept value to send to client
-# this method take websocket secret key from client
-# and returns Sec-WebSocket-Key  <- a string, encoded
-def gen_accept_key(sec_key):
-	temp = sec_key+GUID
-	return base64.b64encode(hashlib.sha1(temp.encode('utf-8')).digest())
 
 
-# this function used to validate Sec-WebSocket-Key sent by client
-# returns true if the decoded bytes of the key is 16 bytes long
-# and false if it is not
-def validate_sec_key(sec_key):
-	return len(base64.b64decode(sec_key)) == 16
+# =======================================
+# FRAME HANDLER BLOCK
+
 
 # this function is used to build packet frame
 # takes X arguments:
@@ -146,7 +153,7 @@ def validate_sec_key(sec_key):
      |                     Payload Data continued ...                |
      +---------------------------------------------------------------+
 
-     much better for me, 
+     much better for me, because reasons
  """
 
 
@@ -242,3 +249,136 @@ def parse_frame(frame):
 	}
 
 	return result
+
+# ============================================
+# Handshake handler block
+
+
+HEADERS = {
+	"Upgrade": ['websocket'],
+	"Connection" : ['upgrade'],
+	"Sec-WebSocket-Accept": [],
+	"Sec-WebSocket-Protocol" : [],
+	"Sec-WebSocket-Key": [],
+	"Sec-WebSocket-Version" : [13],
+	"Origin" : [],
+	"Host" : [],
+}
+
+
+CLIENT_HS_HEADERS = {
+	"upgrade": ['websocket'],
+	"connection" : ['upgrade'],
+	"sec-websocket-version" : [13],
+	"origin" : [],
+	"host" : [],
+	"sec-websocket-key": [],
+}
+
+SERVER_HS_HEADERS = {
+	"upgrade": ['websocket'],
+	"connection" : ['upgrade'],
+	"sec-websocket-version" : [13],
+	"sec-websocket-accept": [],
+}
+
+# this method is used to generate Sec-WebSocket-Accept value to send to client
+# this method take websocket secret key from client
+# and returns Sec-WebSocket-Key  <- a string, encoded
+def gen_accept_key(sec_key):
+	temp = sec_key+GUID
+	return base64.b64encode(hashlib.sha1(temp.encode('utf-8')).digest())
+
+
+# this function used to validate Sec-WebSocket-Key sent by client
+# returns true if the decoded bytes of the key is 16 bytes long
+# and false if it is not
+def is_valid_sec_key(sec_key):
+	return len(base64.b64decode(sec_key)) == 16
+
+
+# this function parse incoming HTTP request
+# takes one parameter: HTTP request
+# and returns dictionary
+def parse_http_request(req):
+	
+	lines = req.strip().split('\n')
+
+	request_line = lines[0].split(' ')
+	method = request_line[0]
+	path = request_line[1]
+	protocol = request_line[2]
+
+	headers = {}
+	for line in lines[1:]:
+		temp = line.split(':')
+		headers[temp[0].lower().strip()] = [i.strip() for i in temp[1].lower().split(',')] 
+
+	# for h in headers:
+
+
+	result = {
+		"METHOD": method,
+		"PATH": path,
+		"PROTOCOL": protocol,
+		"HEADERS" : headers,
+	}
+
+	return result
+
+# this function return true if a websocket handshake request is valid
+# and false if not
+# takes one argument: HTTP request
+def is_handshake_valid(req):
+	
+	req = parse_http_request(req)
+
+	# allow only GET method
+	if (req["METHOD"] != "GET"):
+		return False
+
+	# # check if client has all the required headers to perform websocket handshake and matching value
+	for h in CLIENT_HS_HEADERS:
+		if (h not in req["HEADERS"]):
+			return False
+		else:
+			if (len(CLIENT_HS_HEADERS[h]) > 0):
+				if (req["HEADERS"][h] != CLIENT_HS_HEADERS[i][0]):
+					return False
+
+
+
+	# for i in CLIENT_HS_HEADERS:
+	# 	if (i not in headers):
+	# 		return False
+	# 	else:
+	# 		if (len(CLIENT_HS_HEADERS[i]) > 0):
+	# 			if (headers[i] != CLIENT_HS_HEADERS[i][0]):
+	# 				return False
+
+	if(not is_valid_sec_key(headers["sec-websocket-key"])):
+		return False
+
+# this function is used to create a response to websocket handshake
+# takes one argument: HTTP req
+# and returns response for that request
+def reply_handshake(req):
+		req = parse_http_request(req)
+	if (is_handshake_valid(req)):
+		sec_key = gen_accept_key(req["sec-websocket-key"])
+
+		response = """HTTP/1.1 101 Switching Protocol
+Upgrade: websocket
+Connection: upgrade
+Sec-WebSocket-Key: {}""".format(sec_key)
+
+	else:
+		response = """HTTP/1.1 400 Bad Request"""
+	
+	return response
+
+
+
+
+
+
