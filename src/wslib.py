@@ -163,7 +163,7 @@ def build_frame(fin=FALSE, rsv1=0, rsv2=0, rsv3=0, opcode=CONTINUATION, mask=0, 
 		second = imp_int_to_utf8((mask << 7) + 0x7f) + imp_int_to_utf8(payload_len, 64)
 
 	third = ''.encode('utf-8')
-	if (mask = 1):
+	if (mask == 1):
 		third = masking_key
 		last = mask_payload(payload, masking_key)
 	else:
