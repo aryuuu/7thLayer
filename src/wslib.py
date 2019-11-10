@@ -180,7 +180,7 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 		return first_byte + second + third + last		
 	else:
 		last = payload
-		print(type(first_byte), type(second), type(last))
+		# print(type(first_byte), type(second), type(last))
 		return first_byte + second +  last
 
 	# return first_byte + second + third + last
@@ -419,6 +419,8 @@ def parse_payload(payload):
 	
 	methods = ["!echo", "!submission", ]
 	body = None
+
+	
 
 	payload = payload.decode('utf-8').split(' ', 1)
 	if (payload[0] in methods):

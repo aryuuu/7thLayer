@@ -13,7 +13,7 @@ class WSConn(threading.Thread):
 
 	#
 	def run(self):
-		handshake = self.conn.recv(4096).decode('utf-8')
+		handshake = self.conn.recv(0x20000).decode('utf-8')
 		
 		# reply the handshake, wether it is valid or not
 		response, success = reply_handshake(handshake)
@@ -26,25 +26,29 @@ class WSConn(threading.Thread):
 			# while client is not sending close frame control
 			while(not close):
 				# receive frame from client
-				buff = self.conn.recv(4096)
+				buff = self.conn.recv(0x20000)
 				# parse the frame
 				frame = parse_frame(buff)
-				payloadd_buff = ''
+				# payload_buff = ''
 				method = ''
 				body = ''
+				bin_body = b''
 
-
+				print("FIN", frame["FIN"])
+				print("OPCODE", frame["OPCODE"])
 				if (frame["FIN"] == 1):
 
 					# build reply frame
 					if (frame["OPCODE"] == CONNECTION_CLOSE):
 						close = True
-						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=CONNECTION_CLOSE, mask=0, payload_len=0, masking_key=None, payload="".encode('utf-8'))
+						reply_frame = build_frame(1, 0, 0, 0, CONNECTION_CLOSE, 0, 0, None, "".encode('utf-8'))
+						print("NOOO DON'T LEAVE :(")
 
 					elif (frame["OPCODE"] == PING):
-						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=PONG, mask=0, payload_len=len(frame["PAYLOAD"]), masking_key=None, payload=frame["PAYLOAD"])
+						reply_frame = build_frame(1, 0, 0, 0, PONG, 0, len(frame["PAYLOAD"]), None, frame["PAYLOAD"])
+						print("PONG")
 
-					elif (frame["OPCODE"] == TEXT): # the payload on this one is most likely to be method and body, according to the specs
+					elif (frame["OPCODE"] == TEXT or method == '!echo'): # the payload on this one is most likely to be method and body, according to the specs
 						payload = frame["PAYLOAD"]
 						temp_method, temp_body = parse_payload(payload)
 
@@ -56,51 +60,61 @@ class WSConn(threading.Thread):
 							body += temp_body
 
 						if (method == "!echo"):
-							reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=TEXT, mask=0, payload_len=len(body), masking_key=None, payload=body.encode('utf-8'))
+							reply_frame = build_frame(1, 0, 0, 0, TEXT, 0, len(body), None, body.encode('utf-8'))
 
 						elif (method == "!submission"):
 							sauce = open("7thLayer.zip", 'rb').read()
-							reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=BINARY, mask=0, payload_len=len(sauce), masking_key=None, payload=sauce)
+							reply_frame = build_frame(1, 0, 0, 0, BINARY, 0, len(sauce), None, sauce)
 					
-					elif (frame["OPCODE"] == BINARY):
+					# elif (method == '!submission'):
+					# 	sauce = open("7thLayer.zip", 'rb').read()
+					# 	reply_frame = build_frame(1, 0, 0, 0, BINARY, 0, len(sauce), None, sauce)
 
-						# elif (method == "!check"):
+						# sauce = open("7thLayer.zip", 'rb').read()
+						# checksum = hashlib.md5(sauce).digest()
+
+						# if (checksum == body):
+						# 	result = "1".encode('utf-8')
+						# else:
+						# 	result = "0".encode('utf-8')
+
+						# reply_frame = build_frame(1, 0, 0, 0, BINARY, 0, 1, None, result)
+
+					elif (frame["OPCODE"] == BINARY or method == '!check'):
+						bin_body += frame["PAYLOAD"]
+						received = open('received', 'wb')
+
 						sauce = open("7thLayer.zip", 'rb').read()
 						checksum = hashlib.md5(sauce).digest()
+						copy = hashlib.md5(bin_body).digest()
 
-						if (checksum == body):
+						if (checksum == copy):
 							result = "1".encode('utf-8')
 						else:
 							result = "0".encode('utf-8')
 
-						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=BINARY, mask=0, payload_len=1, masking_key=None, payload=result)
-				
+						reply_frame = build_frame(1, 0, 0, 0, TEXT, 0, 1, None, result)
+
+						# received.write(bin_body)
+
 					# reset method and body 
 					method = ''
 					body = ''
+					bin_body = b''
 					# send the reply_frame to our beloved client
 					self.conn.sendall(reply_frame)
 
 				else:
-					# block for handling fragmentation
-					# elif(frame["OPCODE"] == CONTINUATION):
-					# 	payload = frame["PAYLOAD"]
-					# 	temp_method, temp_body = parse_payload(payload)
 					
-					# # block for handling methods (!echo, !submission, !check)
-					# elif(frame["OPCODE"] == TEXT):
-					# 	payload = frame["PAYLOAD"]
-					# 	temp_method, temp_body = parse_payload(payload)
-
-					# 	# check if it is conti
-					# 	if (temp_method != None):
-					# 		method = temp_method
-
-					# 	body += temp_body
 
 					payload = frame["PAYLOAD"]
-					temp_method, temp_body = parse_payload(payload)
 
-					body += temp_body
+					if (frame["OPCODE"] != BINARY and method != "!check"):
+						temp_method, temp_body = parse_payload(payload)
+						body += temp_body
+					else:
+						method = '!check'
+						bin_body = payload
+						# bin_body += temp_body
 
 		self.conn.close()			
