@@ -214,7 +214,10 @@ def parse_frame(frame):
 	masking_key = None
 	if (mask == 1):
 		if(pay_len <= 0x7d):
-			masking_key = frame[PAYLOAD_LEN_END_IDX:PAYLOAD_LEN_END_IDX+4]
+			masking_key = frame[PAYLOAD_LEN_END_IDX+1:PAYLOAD_LEN_END_IDX+5]
+			# print(masking_key)
+			# for i in masking_key:
+			# 	print(hex(i))
 		elif(pay_len == 0x7e):
 			masking_key = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX+4]
 		else:
@@ -224,7 +227,7 @@ def parse_frame(frame):
 	if(mask == 1):
 		print("This frame is masked")
 		if(pay_len <= 0x7d):
-			payload = mask_payload(frame[PAYLOAD_LEN_END_IDX+4:], masking_key)
+			payload = mask_payload(frame[PAYLOAD_LEN_END_IDX+5:], masking_key)
 		elif(pay_len == 0x7e):
 			payload = mask_payload(frame[PAYLOAD_LEN_END_EXT_16_IDX+4:], masking_key)
 		else:
