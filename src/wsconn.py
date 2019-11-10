@@ -35,8 +35,10 @@ class WSConn(threading.Thread):
 					# continue
 					reply_frame = build_frame(1, 0, 0, 0, CONNECTION_CLOSE, 0, 0, None, "".encode('utf-8'))
 					self.conn.sendall(reply_frame)
+					close = True
+					print("Bye mate, you are so empty")
 					continue
-					
+
 				# payload_buff = ''
 				method = ''
 				body = ''
@@ -46,6 +48,10 @@ class WSConn(threading.Thread):
 				print("OPCODE", frame["OPCODE"])
 
 				if(frame["OPCODE"] not in [0,1,2,8,9,10]):
+					reply_frame = build_frame(1, 0, 0, 0, CONNECTION_CLOSE, 0, 0, None, "".encode('utf-8'))
+					self.conn.sendall(reply_frame)
+					close = True
+					print("Bye mate, i don't know you")
 					continue
 
 				if (frame["FIN"] == 1):
@@ -71,7 +77,10 @@ class WSConn(threading.Thread):
 							method = temp_method
 						# print(temp_body)	
 						if (temp_body != None):
-							body += temp_body
+							try:
+								body += temp_body
+							except:
+								body += temp_body.decode('utf-8')
 
 						if (method == "!echo"):
 							reply_frame = build_frame(1, 0, 0, 0, TEXT, 0, len(body), None, body.encode('utf-8'))
@@ -126,7 +135,10 @@ class WSConn(threading.Thread):
 
 					if (frame["OPCODE"] != BINARY and method != "!check"):
 						temp_method, temp_body = parse_payload(payload)
-						body += temp_body
+						try:
+							body += temp_body
+						except:
+							body += temp_body.decode('utf-8')
 					else:
 						method = '!check'
 						bin_body = payload
