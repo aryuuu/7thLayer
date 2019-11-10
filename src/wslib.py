@@ -104,7 +104,7 @@ def mask_payload(payload, key):
 
 # =======================================
 # FRAME HANDLER BLOCK
-
+# =======================================
 
 # this function is used to build packet frame
 # takes X arguments:
@@ -260,7 +260,7 @@ def parse_frame(frame):
 
 # ============================================
 # Handshake handler block
-
+# ============================================
 
 HEADERS = {
 	"Upgrade": ['websocket'],
@@ -322,9 +322,6 @@ def parse_http_request(req):
 		temp = line.split(':')
 		headers[temp[0].lower().strip()] = [i.strip() for i in temp[1].lower().split(',')] 
 
-	# for h in headers:
-
-
 	result = {
 		"METHOD": method,
 		"PATH": path,
@@ -354,16 +351,6 @@ def is_handshake_valid(req):
 				if (req["HEADERS"][h] != CLIENT_HS_HEADERS[i][0]):
 					return False
 
-
-
-	# for i in CLIENT_HS_HEADERS:
-	# 	if (i not in headers):
-	# 		return False
-	# 	else:
-	# 		if (len(CLIENT_HS_HEADERS[i]) > 0):
-	# 			if (headers[i] != CLIENT_HS_HEADERS[i][0]):
-	# 				return False
-
 	if(not is_valid_sec_key(headers["sec-websocket-key"])):
 		return False
 
@@ -375,7 +362,7 @@ def reply_handshake(req):
 	if (is_handshake_valid(req)):
 		sec_key = gen_accept_key(req["sec-websocket-key"])
 		success = True
-		response = ["HTTP/1.1 101 Switching Protocol", "Upgrade: websocket", "Sec-WebSocket-Key: {}".format(sec_key)]
+		response = ["HTTP/1.1 101 Switching Protocol", "Upgrade: websocket", "Sec-WebSocket-Key: {}".format(sec_key), ""]
 # 		response = """HTTP/1.1 101 Switching Protocol
 # Upgrade: websocket
 # Connection: upgrade
@@ -389,7 +376,27 @@ def reply_handshake(req):
 
 	return "\r\n".join(response), success
 
+# this function is used to parse payload
+# takes one argument: payload
+# returns the method (!echo, !submission, !check) and body
+def parse_payload(payload):
+	
+	methods = ["!echo", "!submission", ]
+	body = None
 
+	payload = payload.split(' ', 1)
+	if (payload[0] in methods):
+		method = payload[0]
+		if (len(payload) > 1):
+			body = payload[1]
+	else:
+		method = None
+		body = ' '.join(payload)
+	return method, body
+
+
+
+		
 
 
 
