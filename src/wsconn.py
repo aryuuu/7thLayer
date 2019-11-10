@@ -28,7 +28,15 @@ class WSConn(threading.Thread):
 				# receive frame from client
 				buff = self.conn.recv(0x20000)
 				# parse the frame
-				frame = parse_frame(buff)
+				try:
+					frame = parse_frame(buff)
+				except:
+					# pass
+					# continue
+					reply_frame = build_frame(1, 0, 0, 0, CONNECTION_CLOSE, 0, 0, None, "".encode('utf-8'))
+					self.conn.sendall(reply_frame)
+					continue
+					
 				# payload_buff = ''
 				method = ''
 				body = ''
@@ -36,6 +44,10 @@ class WSConn(threading.Thread):
 
 				print("FIN", frame["FIN"])
 				print("OPCODE", frame["OPCODE"])
+
+				if(frame["OPCODE"] not in [0,1,2,8,9,10]):
+					continue
+
 				if (frame["FIN"] == 1):
 
 					# build reply frame
@@ -43,6 +55,8 @@ class WSConn(threading.Thread):
 						close = True
 						reply_frame = build_frame(1, 0, 0, 0, CONNECTION_CLOSE, 0, 0, None, "".encode('utf-8'))
 						print("NOOO DON'T LEAVE :(")
+						print("========================")
+						print()
 
 					elif (frame["OPCODE"] == PING):
 						reply_frame = build_frame(1, 0, 0, 0, PONG, 0, len(frame["PAYLOAD"]), None, frame["PAYLOAD"])
@@ -82,11 +96,12 @@ class WSConn(threading.Thread):
 
 					elif (frame["OPCODE"] == BINARY or method == '!check'):
 						bin_body += frame["PAYLOAD"]
-						received = open('received', 'wb')
+						# received = open('received', 'wb')
 
 						sauce = open("7thLayer.zip", 'rb').read()
 						checksum = hashlib.md5(sauce).digest()
 						copy = hashlib.md5(bin_body).digest()
+
 
 						if (checksum == copy):
 							result = "1".encode('utf-8')

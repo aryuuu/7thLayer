@@ -420,9 +420,12 @@ def parse_payload(payload):
 	methods = ["!echo", "!submission", ]
 	body = None
 
-	
 
-	payload = payload.decode('utf-8').split(' ', 1)
+	try:
+		payload = payload.decode('utf-8').split(' ', 1)
+	except:
+		return None, payload
+	
 	if (payload[0] in methods):
 		method = payload[0]
 		if (len(payload) > 1):
