@@ -168,7 +168,7 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 	# build the next byte
 	if (payload_len < 0x7e):
 		second = imp_int_to_utf8((mask << 7) + payload_len)
-	elif (payload_len == 0x7e):
+	elif (payload_len < 2**16):
 		second = imp_int_to_utf8((mask << 7) + 0x7e) + imp_int_to_utf8(payload_len, 16)
 	else:
 		second = imp_int_to_utf8((mask << 7) + 0x7f) + imp_int_to_utf8(payload_len, 64)
@@ -275,8 +275,8 @@ HEADERS = {
 
 
 CLIENT_HS_HEADERS = {
-	"upgrade": ['websocket'],
-	"connection" : ['upgrade'],
+	# "upgrade": ['websocket'],
+	# "connection" : ['upgrade'],
 	"sec-websocket-version" : ["13"],
 	# "origin" : [],
 	# "host" : [],
@@ -339,9 +339,9 @@ def parse_http_request(req):
 		"HEADERS" : headers,
 	}
 
-	for i in result:
-		print(i, result[i])
-	print("===============")
+	# for i in result:
+		# print(i, result[i])
+	# print("===============")
 	return result
 
 # this function return true if a websocket handshake request is valid
@@ -363,8 +363,8 @@ def is_handshake_valid(request):
 			return False
 		else:
 			if (len(CLIENT_HS_HEADERS[h]) > 0):
-				print(">>>>>", req["HEADERS"][h][0])
-				print(">>>>>", CLIENT_HS_HEADERS[h][0])
+				# print(">>>>>", req["HEADERS"][h][0])
+				# print(">>>>>", CLIENT_HS_HEADERS[h][0])
 				if (req["HEADERS"][h][0].lower() != CLIENT_HS_HEADERS[h][0].lower()):
 				# if (i not in CLIENT_HS_HEADERS[h] for i in req["HEADERS"][h]):
 					print("value of header", h, "not match")
@@ -386,7 +386,11 @@ def reply_handshake(request):
 	if (is_handshake_valid(request)):
 		sec_key = gen_accept_key(req["HEADERS"]["sec-websocket-key"][0])
 		success = True
-		response = ["HTTP/1.1 101 Switching Protocol", "Upgrade: websocket", "Sec-WebSocket-Accept: {}".format(sec_key), ""]
+		response = ["HTTP/1.1 101 Switching Protocols",
+					 "Upgrade: websocket",
+					 "Connection: Upgrade",
+					 "Sec-WebSocket-Accept: {}".format(sec_key), 
+					 ""]
 # 		response = """HTTP/1.1 101 Switching Protocol
 # Upgrade: websocket
 # Connection: upgrade
@@ -394,11 +398,11 @@ def reply_handshake(request):
 
 	else:
 		success = False
-		response = ["HTTP/1.1 400 Bad Request", ""]
+		response = ["HTTP/1.1 400 Bad Request",""]
 		# response = """HTTP/1.1 400 Bad Request"""
 
-
-	return "\r\n".join(response), success
+	print("\r\n".join(response)+'\r\n')
+	return "\r\n".join(response)+'\r\n', success
 
 # this function is used to parse payload
 # takes one argument: payload
