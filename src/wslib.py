@@ -169,9 +169,9 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 	if (payload_len < 0x7e):
 		second = imp_int_to_utf8((mask << 7) + payload_len)
 	elif (payload_len < 2**16):
-		second = imp_int_to_utf8((mask << 7) + 0x7e) + imp_int_to_utf8(payload_len, 16)
+		second = imp_int_to_utf8((mask << 7) + 0x7e) + imp_int_to_utf8(payload_len, 4)
 	else:
-		second = imp_int_to_utf8((mask << 7) + 0x7f) + imp_int_to_utf8(payload_len, 64)
+		second = imp_int_to_utf8((mask << 7) + 0x7f) + imp_int_to_utf8(payload_len, 16)
 
 	# third = ''.encode('utf-8')
 	if (mask == 1):
@@ -180,6 +180,7 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 		return first_byte + second + third + last		
 	else:
 		last = payload
+		print(type(first_byte), type(second), type(last))
 		return first_byte + second +  last
 
 	# return first_byte + second + third + last
@@ -205,7 +206,7 @@ def parse_frame(frame):
 	pay_len = frame[PAYLOAD_LEN_START_IDX] & 0x7f
 	if (pay_len <= 0x7d):
 		payload_len = pay_len
-	elif (PAY_LEN == 0x7e):
+	elif (pay_len == 0x7e):
 		payload_len = int(frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX].hex(), 16) 
 	else:
 		payload_len = int(frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_64_IDX].hex(), 16) 
@@ -235,13 +236,13 @@ def parse_frame(frame):
 	else:
 		print("this one is not masked")
 		if(pay_len <= 0x7d):
-			payload = frame[PAYLOAD_LEN_END_IDX+1:].decode('utf-8')
+			payload = frame[PAYLOAD_LEN_END_IDX+1:]
 			# print("this one is short")
 		elif(pay_len == 0x7e):
-			payload = frame[PAYLOAD_LEN_END_EXT_16_IDX:].decode('utf-8')
+			payload = frame[PAYLOAD_LEN_END_EXT_16_IDX:]
 			# print("this one is not very long")
 		else:
-			payload = frame[PAYLOAD_LEN_END_EXT_64_IDX:].decode('utf-8')
+			payload = frame[PAYLOAD_LEN_END_EXT_64_IDX:]
 			# print("this one is long")
 
 	result = {
@@ -374,7 +375,7 @@ def is_handshake_valid(request):
 	if(not is_valid_sec_key(req["HEADERS"]["sec-websocket-key"][0])):
 		return False
 
-	print("Valid handshake...")
+	# print("Valid handshake...")
 	return True
 
 
@@ -384,6 +385,7 @@ def is_handshake_valid(request):
 def reply_handshake(request):
 	req = parse_http_request(request)
 	if (is_handshake_valid(request)):
+		print("Valid handshake...")
 		sec_key = gen_accept_key(req["HEADERS"]["sec-websocket-key"][0])
 		success = True
 		response = ["HTTP/1.1 101 Switching Protocols",
@@ -391,6 +393,10 @@ def reply_handshake(request):
 					 "Connection: Upgrade",
 					 "Sec-WebSocket-Accept: {}".format(sec_key), 
 					 ""]
+		resp = 'HTTP/1.1 101 Switching Protocols\r\n'\
+				+'Upgrade: websocket\r\n'\
+				+'Connection: Upgrade\r\n'\
+				+'Sec-WebSocket-Accept: %s\r\n' % sec_key+'\r\n'
 # 		response = """HTTP/1.1 101 Switching Protocol
 # Upgrade: websocket
 # Connection: upgrade
@@ -401,8 +407,10 @@ def reply_handshake(request):
 		response = ["HTTP/1.1 400 Bad Request",""]
 		# response = """HTTP/1.1 400 Bad Request"""
 
-	print("\r\n".join(response)+'\r\n')
-	return "\r\n".join(response)+'\r\n', success
+	# print("\r\n".join(response)+'\r\n')
+	print(resp)
+	# return "\r\n".join(response)+'\r\n', success
+	return resp, success
 
 # this function is used to parse payload
 # takes one argument: payload
@@ -412,7 +420,7 @@ def parse_payload(payload):
 	methods = ["!echo", "!submission", ]
 	body = None
 
-	payload = payload.split(' ', 1)
+	payload = payload.decode('utf-8').split(' ', 1)
 	if (payload[0] in methods):
 		method = payload[0]
 		if (len(payload) > 1):

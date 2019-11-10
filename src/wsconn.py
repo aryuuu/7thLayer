@@ -17,7 +17,7 @@ class WSConn(threading.Thread):
 		
 		# reply the handshake, wether it is valid or not
 		response, success = reply_handshake(handshake)
-		self.conn.send(response.encode('utf-8'))
+		self.conn.sendall(response.encode('ascii'))
 		print("replied a handshake ")
 		# if the handshake if valid, and the connection continued
 		if (is_handshake_valid(handshake)):
@@ -39,7 +39,7 @@ class WSConn(threading.Thread):
 					# build reply frame
 					if (frame["OPCODE"] == CONNECTION_CLOSE):
 						close = True
-						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=CONNECTION_CLOSE, mask=0, payload_len=0, masking_key=None, payload="")
+						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=CONNECTION_CLOSE, mask=0, payload_len=0, masking_key=None, payload="".encode('utf-8'))
 
 					elif (frame["OPCODE"] == PING):
 						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=PONG, mask=0, payload_len=len(frame["PAYLOAD"]), masking_key=None, payload=frame["PAYLOAD"])
@@ -51,11 +51,12 @@ class WSConn(threading.Thread):
 						# check if it is conti
 						if (temp_method != None):
 							method = temp_method
-
-						body += temp_body
+						# print(temp_body)	
+						if (temp_body != None):
+							body += temp_body
 
 						if (method == "!echo"):
-							reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=TEXT, mask=0, payload_len=len(body), masking_key=None, payload=body)
+							reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=TEXT, mask=0, payload_len=len(body), masking_key=None, payload=body.encode('utf-8'))
 
 						elif (method == "!submission"):
 							sauce = open("7thLayer.zip", 'rb').read()
@@ -74,8 +75,11 @@ class WSConn(threading.Thread):
 
 						reply_frame = build_frame(fin=1, rsv1=0, rsv2=0, rsv3=0, opcode=BINARY, mask=0, payload_len=1, masking_key=None, payload=result)
 				
+					# reset method and body 
+					method = ''
+					body = ''
 					# send the reply_frame to our beloved client
-					self.conn.send(reply_frame)
+					self.conn.sendall(reply_frame)
 
 				else:
 					# block for handling fragmentation
