@@ -193,9 +193,9 @@ def build_frame(fin, rsv1, rsv2, rsv3, opcode, mask, payload_len, masking_key, p
 # returns dictionary of frame (like JSON) consist of FIN, RSV1, RSV2, RSV3, OPCODE, MASK, PAYLOAD_LEN, MASKING_KEY, PAYLOAD (decoded)
 def parse_frame(frame):
 	fin = frame[FIN_IDX] >> 7
-	rsv1 = (frame[RSV1_IDX] & 0x70) >> 7
-	rsv2 = (frame[RSV2_IDX] & 0x70) >> 7
-	rsv3 = (frame[RSV3_IDX] & 0x70) >> 7
+	rsv1 = (frame[RSV1_IDX] & 0x40) >> 7
+	rsv2 = (frame[RSV2_IDX] & 0x20) >> 7
+	rsv3 = (frame[RSV3_IDX] & 0x10) >> 7
 
 	opcode = frame[OPCODE_IDX] & 0x0f
 	mask = frame[MASK_IDX] >> 7
@@ -206,9 +206,9 @@ def parse_frame(frame):
 	if (pay_len <= 0x7d):
 		payload_len = pay_len
 	elif (PAY_LEN == 0x7e):
-		payload_len = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX] 
+		payload_len = int(frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX].hex(), 16) 
 	else:
-		payload_len = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_64_IDX] 
+		payload_len = int(frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_64_IDX].hex(), 16) 
 
 	# check if mask exist to decide wether or not we should parse the masking key
 	masking_key = None
@@ -219,9 +219,9 @@ def parse_frame(frame):
 			# for i in masking_key:
 			# 	print(hex(i))
 		elif(pay_len == 0x7e):
-			masking_key = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_16_IDX+4]
+			masking_key = frame[PAYLOAD_LEN_END_EXT_16_IDX:PAYLOAD_LEN_END_EXT_16_IDX+4]
 		else:
-			masking_key = frame[PAYLOAD_LEN_START_EXT_IDX:PAYLOAD_LEN_END_EXT_64_IDX+4]
+			masking_key = frame[PAYLOAD_LEN_END_EXT_64_IDX:PAYLOAD_LEN_END_EXT_64_IDX+4]
 
 	# and again check if mask exist to parse our payload
 	if(mask == 1):
@@ -268,7 +268,7 @@ HEADERS = {
 	"Sec-WebSocket-Accept": [],
 	"Sec-WebSocket-Protocol" : [],
 	"Sec-WebSocket-Key": [],
-	"Sec-WebSocket-Version" : [13],
+	"Sec-WebSocket-Version" : ["13"],
 	"Origin" : [],
 	"Host" : [],
 }
@@ -277,16 +277,16 @@ HEADERS = {
 CLIENT_HS_HEADERS = {
 	"upgrade": ['websocket'],
 	"connection" : ['upgrade'],
-	"sec-websocket-version" : [13],
-	"origin" : [],
-	"host" : [],
+	"sec-websocket-version" : ["13"],
+	# "origin" : [],
+	# "host" : [],
 	"sec-websocket-key": [],
 }
 
 SERVER_HS_HEADERS = {
 	"upgrade": ['websocket'],
 	"connection" : ['upgrade'],
-	"sec-websocket-version" : [13],
+	"sec-websocket-version" : ["13"],
 	"sec-websocket-accept": [],
 }
 
@@ -295,7 +295,8 @@ SERVER_HS_HEADERS = {
 # and returns Sec-WebSocket-Key  <- a string, encoded
 def gen_accept_key(sec_key):
 	temp = sec_key+GUID
-	return base64.b64encode(hashlib.sha1(temp.encode('utf-8')).digest())
+	print(temp)
+	return base64.b64encode(hashlib.sha1(temp.encode('utf-8')).digest()).decode('utf-8')
 
 
 # this function used to validate Sec-WebSocket-Key sent by client
@@ -303,6 +304,15 @@ def gen_accept_key(sec_key):
 # and false if it is not
 def is_valid_sec_key(sec_key):
 	return len(base64.b64decode(sec_key)) == 16
+
+# this function is used to build a HTTP request
+# takes 4 arguments: method, path, protocol, headers
+# and returns a HTTP request
+def build_http_request(method, path, protocol, headers):
+	request_line = method + " " + path + " " + protocol
+	req = request_line + '\r\n' + '\r\n'.join(headers) + '\r\n'
+
+	return req.encode('utf-8')
 
 
 # this function parse incoming HTTP request
@@ -320,7 +330,7 @@ def parse_http_request(req):
 	headers = {}
 	for line in lines[1:]:
 		temp = line.split(':')
-		headers[temp[0].lower().strip()] = [i.strip() for i in temp[1].lower().split(',')] 
+		headers[temp[0].lower().strip()] = [i.strip() for i in temp[1].split(',')] 
 
 	result = {
 		"METHOD": method,
@@ -329,40 +339,54 @@ def parse_http_request(req):
 		"HEADERS" : headers,
 	}
 
+	for i in result:
+		print(i, result[i])
+	print("===============")
 	return result
 
 # this function return true if a websocket handshake request is valid
 # and false if not
 # takes one argument: HTTP request
-def is_handshake_valid(req):
+def is_handshake_valid(request):
 	
-	req = parse_http_request(req)
+	req = parse_http_request(request)
 
 	# allow only GET method
 	if (req["METHOD"] != "GET"):
+		print("method not Allowed")
 		return False
 
 	# # check if client has all the required headers to perform websocket handshake and matching value
 	for h in CLIENT_HS_HEADERS:
 		if (h not in req["HEADERS"]):
+			print("header", h, "not in request")
 			return False
 		else:
 			if (len(CLIENT_HS_HEADERS[h]) > 0):
-				if (req["HEADERS"][h] != CLIENT_HS_HEADERS[i][0]):
+				print(">>>>>", req["HEADERS"][h][0])
+				print(">>>>>", CLIENT_HS_HEADERS[h][0])
+				if (req["HEADERS"][h][0].lower() != CLIENT_HS_HEADERS[h][0].lower()):
+				# if (i not in CLIENT_HS_HEADERS[h] for i in req["HEADERS"][h]):
+					print("value of header", h, "not match")
 					return False
 
-	if(not is_valid_sec_key(headers["sec-websocket-key"])):
+
+	if(not is_valid_sec_key(req["HEADERS"]["sec-websocket-key"][0])):
 		return False
+
+	print("Valid handshake...")
+	return True
+
 
 # this function is used to create a response to websocket handshake
 # takes one argument: HTTP req
 # and returns response for that request, status
-def reply_handshake(req):
-	req = parse_http_request(req)
-	if (is_handshake_valid(req)):
-		sec_key = gen_accept_key(req["sec-websocket-key"])
+def reply_handshake(request):
+	req = parse_http_request(request)
+	if (is_handshake_valid(request)):
+		sec_key = gen_accept_key(req["HEADERS"]["sec-websocket-key"][0])
 		success = True
-		response = ["HTTP/1.1 101 Switching Protocol", "Upgrade: websocket", "Sec-WebSocket-Key: {}".format(sec_key), ""]
+		response = ["HTTP/1.1 101 Switching Protocol", "Upgrade: websocket", "Sec-WebSocket-Accept: {}".format(sec_key), ""]
 # 		response = """HTTP/1.1 101 Switching Protocol
 # Upgrade: websocket
 # Connection: upgrade

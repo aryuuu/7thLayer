@@ -13,11 +13,12 @@ class WSConn(threading.Thread):
 
 	#
 	def run(self):
-		handshake = self.conn.recv()
+		handshake = self.conn.recv(4096).decode('utf-8')
 		
 		# reply the handshake, wether it is valid or not
-		self.conn.send(reply_handshake(req))
-
+		response, success = reply_handshake(handshake)
+		self.conn.send(response.encode('utf-8'))
+		print("replied a handshake ")
 		# if the handshake if valid, and the connection continued
 		if (is_handshake_valid(handshake)):
 			close = False
@@ -25,7 +26,7 @@ class WSConn(threading.Thread):
 			# while client is not sending close frame control
 			while(not close):
 				# receive frame from client
-				buff = self.conn.recv()
+				buff = self.conn.recv(4096)
 				# parse the frame
 				frame = parse_frame(buff)
 				payloadd_buff = ''

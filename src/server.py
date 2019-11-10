@@ -21,6 +21,7 @@ class WSServer:
 		# thread_list = []
 		while (True):
 			conn, addr = self.socket.accept()
+			print("accepted connection from {}".format(addr))
 			ws_conn = WSConn(conn)
 			ws_conn.run()
 
